@@ -1,0 +1,9 @@
+transformers
+datasets
+bitsandbytes
+peft
+argparse
+deepl
+json
+tqdm
+time

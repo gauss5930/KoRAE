@@ -1,0 +1,8 @@
+{
+    "description": "Template used to fine-tune the Ko-Wyvern.",
+    "prompt_input": "### 시스템:\n{system_msg}\n\n### 사용자:\n{instruction}\n\n### 입력:\n{input}\n\n### 조수:\n",
+    "prompt_no_input": "### 시스템:\n{system_msg}\n\n### 사용자:\n{instruction}\n\n### 조수:\n",
+    "no_prompt_input": "### 시스템:\n당신은 유용한 인공지능 비서입니다. 사용자가 몇 가지 지시가 포함된 작업을 제공합니다. 요청을 적절히 완료하는 응답을 작성하세요.\n\n### 사용자:\n{instruction}\n\n### 입력:\n{input}\n\n### 조수:\n",
+    "no_prompt_no_input": "### 시스템:\n당신은 유용한 인공지능 비서입니다. 사용자가 몇 가지 지시가 포함된 작업을 제공합니다. 요청을 적절히 완료하는 응답을 작성하세요.\n\n### 사용자:\n{instruction}\n\n### 조수:\n",
+    "response_split": "### 응답:"
+}

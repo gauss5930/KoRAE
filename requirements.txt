@@ -8,3 +8,6 @@ torch
 matplotlib
 openai
 accelerate
+deepspeed
+scipy
+wandb

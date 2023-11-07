@@ -14,7 +14,17 @@ Stay tuned for the update of KoRAE!
 
 The model and dataset are available via HuggingFace: [Cartinoe5930](https://huggingface.co/Cartinoe5930)
 
-## Data Process
+## Dataset
+
+We used filtered high-quality Korean dataset for finetuning as mentioned above.
+To filter the high-quality data from mixture of several datasets, we referred to the data filtering method that introduced from [AlpaGasus](https://arxiv.org/abs/2307.08701).
+The overview of data processing procedure is as follws:
+
+1. Collect various Korean dataset from HuggingFace Hub.
+2. Rate the data quality using `gpt-3.5-turbo`.
+3. Process the rated data and filter the high-score data.
+
+
 
 ```
 python 

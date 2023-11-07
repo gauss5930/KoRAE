@@ -28,10 +28,10 @@ def train(
     hub_path: str  = "",
     auth_token: str = "",
     # training hyperparams
-    batch_size: int = 128,
-    micro_batch_size: int = 8,
+    batch_size: int = 32,
+    micro_batch_size: int = 4,
     num_epochs: int = 3,
-    learning_rate: float = 1e-5,
+    learning_rate: float = 3e-4,
     cutoff_len: int = 4096,
     val_set_size: int = 0,
     lr_scheduler: str = "cosine",
@@ -106,6 +106,7 @@ def train(
         device_map=device_map,
         use_flash_attention_2=True,
     )
+    model.enable_input_require_grads()
 
     tokenizer = AutoTokenizer.from_pretrained(base_model)
     
@@ -215,6 +216,7 @@ def train(
         args=transformers.TrainingArguments(
             per_device_train_batch_size=micro_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
+            gradient_checkpointing=True,
             warmup_ratio=warmup_ratio,
             num_train_epochs=num_epochs,
             learning_rate=learning_rate,

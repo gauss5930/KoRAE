@@ -1,12 +1,34 @@
-# KO-Wyvern
+# KoRAE
 
-## Plan
+<p align="center"><img src="/assets/KoRAE.png", width='256', height='256'></p>
 
-목표는 [open-ko-llm-leaderboard](https://huggingface.co/spaces/upstage/open-ko-llm-leaderboard)에서 1등을 차지하는 것으로 하자.
+We introduce **KoRAE** which finetuned with filtered high-quality Korean dataset.
 
-- base model: [Llama2-koen-13b](beomi/llama-2-ko-7b) / [polyglot-ko-12.8b](https://huggingface.co/EleutherAI/polyglot-ko-12.8b)
-- Training: 일단 지금은 빠르게 training해서 leaderboard에 업로드하는 것이 좋을 것 같으니, LoRA fine-tuning을 활용해보자. 최종적으로는 merge도 진행해야 함.
-- Dataset: [Open-Wyvern-74k](https://huggingface.co/datasets/StudentLLM/Open-Wyvern-74k) 사용 예정. 다른 데이터셋도 함께 사용해보는 것도 고민해보았으나 유니크함을 보여주기 위해서는 이 데이터셋만 사용하는 것이 좋을 것 같음.
+The **KoRAE** is output of combination of high-quality data which filtered by special data filtering method and Korean Llama-2 that Korean vocabularis were added. 
+We utilized special data filtering methods which introduced in [AlpaGasus paper](https://arxiv.org/abs/2307.08701) to filter high-quality data from mixture of several Korean datasets([OpenOrca-KO](https://huggingface.co/datasets/kyujinpy/OpenOrca-KO), [KOpen-Platypus](https://huggingface.co/datasets/kyujinpy/KOpen-platypus), [KoCoT_2000](https://huggingface.co/datasets/kyujinpy/KoCoT_2000), [databricks-dolly-15k-ko](https://huggingface.co/datasets/nlpai-lab/databricks-dolly-15k-ko)). 
+Thanks to [@kyujinpy](https://huggingface.co/kyujinpy) and [@nlp-ai](https://huggingface.co/nlpai-lab) for providing Korean datasets.
+We finetuned [Korean Llama-2](https://huggingface.co/beomi/llama-2-koen-13b) that introduced by [@beomi](https://huggingface.co/beomi).
+
+The KoRAE will be uploaded in [Open Ko-LLM Leaderboard](https://huggingface.co/spaces/upstage/open-ko-llm-leaderboard)!
+Stay tuned for the update of KoRAE!
+
+The model and dataset are available via HuggingFace: [Cartinoe5930](https://huggingface.co/Cartinoe5930)
+
+## Data Process
+
+```
+python 
+```
+
+## Setup
+
+Since this repository is multi-GPU friendly because of model or data parallelism, we suggest to use multi-GPU.
+The initial setup of KoRAE can be done as follows. 
+
+```
+cd KoRAE
+pip install -r requirements.txt
+```
 
 ## Translation
 
@@ -18,22 +40,76 @@ python data_pipeline/deepl_translate.py \
     --data_path StudentLLM/Open-Wyvern-74k
 ```
 
-## Fine-tuning
+## Finetuning
 
-**Llama2**
+We finetuned KoRAE with 2 * A100 80G GPUs.
+In addition, we used falsh-attention-2 for the efficient and fast training.
+You can utilize DeepSpeed optionally by running the code with `accelerate launch` and `accelerate_config` files for faster fine-tuning.
+The hyperparameters used for finetuning of KoRAE are as follows:
+
+**Hyperparameters**
+|Hyperparameters|Value|
+|---|---|
+|Dataset|Cartinoe5930/KoRAE_filtered_12k|
+|Batch size|128|
+|Micro batch size|8|
+|Epochs|3|
+|Learning rate|3e-4|
+|lr_scheduler|cosine|
+|Max length|4096|
+|Warmup ratio|0.03|
+|bf16|True|
+
+To run `finetuning/finetune.py`, please refer to following codes.
+
+**Llama-2**
+
+- torchrun version
 ```
-python finetuning/finetune.py \
-    --model llama \
-    --data_type hf \
-    --dataset ko-wyvern \
-    --output_dir your_output_directory \
+torchrun --nproc_per_node=GPU_NUMES finetuning/finetune.py \
+    --base_model beomi/llama-2-koen-13b \
+    --data_path Cartinoe5930/KoRAE_filtered_12k \
+    --output_dir finetuning/result/llama2/ \
+    --wandb_project KoRAE_llama2 \
+    --wandb_run_name KoRAE_llama2 \
+    --hub_path HUB_PATH_TO_UPLOAD_MODEL \
+    --auth_token YOUR_HF_ACCESS_TOKEN \
 ```
 
-**Polyglot**
+- accelerate version
 ```
-python finetuning/finetune.py \
-    --model polyglot \
-    --data_type hf \
-    --dataset ko-wyvern \
-    --output_dir your_output_directory \
+accelerate launch --config_file=accelerate_configs/desired_configuration --num_processes GPU_NUMS finetuning/finetune.py \
+    --base_model beomi/llama-2-koen-13b \
+    --data_path Cartinoe5930/KoRAE_filtered_12k \
+    --output_dir finetuning/result/llama2/ \
+    --wandb_project KoRAE_llama2 \
+    --wandb_run_name KoRAE_llama2 \
+    --hub_path HUB_PATH_TO_UPLOAD_MODEL \
+    --auth_token YOUR_HF_ACCESS_TOKEN \
+```
+
+**Polyglot-ko**
+
+- torchrun version
+```
+torchrun --nproc_per_node=GPU_NUMES finetuning/finetune.py \
+    --base_model EleutherAI/polyglot-ko-12.8b \
+    --data_path Cartinoe5930/KoRAE_filtered_12k \
+    --output_dir finetuning/result/polyglot/ \
+    --wandb_project KoRAE_polyglot \
+    --wandb_run_name KoRAE_polyglot \
+    --hub_path HUB_PATH_TO_UPLOAD_MODEL \
+    --auth_token YOUR_HF_ACCESS_TOKEN \
+```
+
+- accelerate version
+```
+accelerate launch --config_file=accelerate_configs/desired_configuration --num_processes GPU_NUMS finetuning/finetune.py \
+    --base_model EleutherAI/polyglot-ko-12.8b \
+    --data_path Cartinoe5930/KoRAE_filtered_12k \
+    --output_dir finetuning/result/polyglot/ \
+    --wandb_project KoRAE_polyglot \
+    --wandb_run_name KoRAE_polyglot \
+    --hub_path HUB_PATH_TO_UPLOAD_MODEL \
+    --auth_token YOUR_HF_ACCESS_TOKEN \
 ```

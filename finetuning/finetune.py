@@ -30,8 +30,8 @@ def train(
     # training hyperparams
     batch_size: int = 128,
     micro_batch_size: int = 8,
-    num_epochs: int = 1,
-    learning_rate: float = 3e-4,
+    num_epochs: int = 3,
+    learning_rate: float = 1e-5,
     cutoff_len: int = 4096,
     val_set_size: int = 0,
     lr_scheduler: str = "cosine",
@@ -45,6 +45,7 @@ def train(
     wandb_run_name: str = "",
     wandb_watch: str = "",  # options: false | gradients | all
     wandb_log_model: str = "",  # options: false | true
+    resume_from_checkpoint: str = None,
     prompt_template_name: str = "KoRAE_template"
 ):
     if int(os.environ.get("LOCAL_RANK", 0)) == 0:
@@ -219,12 +220,11 @@ def train(
             learning_rate=learning_rate,
             # dataloader_num_workers=16,
             bf16=True,
-            logging_steps=1,
+            logging_steps=10,
             optim="adamw_torch",
             evaluation_strategy="steps" if val_set_size > 0 else "no",
-            save_strategy="steps",
+            save_strategy="epoch",
             eval_steps=200 if val_set_size > 0 else None,
-            save_steps=1000,
             lr_scheduler_type=lr_scheduler,
             output_dir=output_dir,
             save_total_limit=2,

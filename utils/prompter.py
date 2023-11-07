@@ -9,7 +9,7 @@ class Prompter(object):
         self._verbose = verbose
 
         if not template_name:
-            template_name = "ko-wyvern"
+            template_name = "KoRAE_template"
         file_name = osp.join("templates", f"{template_name}.json")
         if not osp.exists(file_name):
             raise ValueError(f"Can't read {file_name}")
@@ -48,10 +48,6 @@ class Prompter(object):
                     instruction=instruction
                 )
 
-        if label:
-            res = f"{res}{label}"
-        if self._verbose:
-            print(res)
         return res
     
     def get_response(self, output: str) -> str:

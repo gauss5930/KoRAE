@@ -66,7 +66,7 @@ def type_cls(input_data):
 
 type_list = {"math": ["$", "ABC"], "code": ["```", "BLOCKED_CODE"]}
 
-def data_process(input_data, data_type):
+def data_process(input_data, data_type, auth_key):
     splited = input_data.split(type_list[data_type][0])
     blocked_list = []
 
@@ -77,7 +77,7 @@ def data_process(input_data, data_type):
 
     input_text = " ".join(splited)
 
-    output = deepl_api(input_text)
+    output = deepl_api(input_text, auth_key)
 
     output = output.split()
 
@@ -95,18 +95,36 @@ if __name__ == "__main__":
 
     dataset, columns = dataset_load(args.data_type, args.data_path)
 
-    for line in tqdm(range(len(dataset))):
+    for i in tqdm(range(len(dataset))):
         translated_text = {}
         for column in columns:
-            input_data = line[column]
+            if column == "category":
+                translated_text[column] = dataset[i][column]
+                continue
 
-            data_type = type_cls(input_data=input_data)
+            input_data = dataset[i][column]
 
-            translated_text[column] = data_process(input_data=input_data, data_type=data_type)
+            if input_data:
+                data_type = type_cls(input_data=input_data)
+            else:
+                translated_text[column] = dataset[i][column]
+                continue
 
-        with open("data_pipleine/ko-open-wyvern.json", "a") as f:
-            json.dump(translated_text, f, indent=4)
+            if data_type:
+                translated_text[column] = data_process(input_data=input_data, data_type=data_type, auth_key=args.API_KEY)
+            else:
+                translated_text[column] = deepl_api(input_text=input_data, auth_key=args.API_KEY)
+
+        with open("data_pipleine/ko-open-wyvern.json", "r") as f:
+            ko_wyvern_dataset = json.load(f)
 
         f.close()
+            
+        ko_wyvern_dataset.append(translated_text)
+
+        with open("data_pipleine/ko-open-wyvern.json", "w", encoding="utf-8") as json_file:
+            json.dump(ko_wyvern_dataset, json_file, ensure_ascii=False, indent=4)
+
+        json_file.close()
 
     print("Translation is all done!!")

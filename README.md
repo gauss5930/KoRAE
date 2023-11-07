@@ -36,16 +36,6 @@ cd KoRAE
 pip install -r requirements.txt
 ```
 
-## Translation
-
-```
-cd KoRAE
-python data_pipeline/deepl_translate.py \
-    --API_KEY your_deepl_API_KEY \
-    --data_type hf \
-    --data_path StudentLLM/Open-Wyvern-74k
-```
-
 ## Finetuning
 
 We finetuned KoRAE with 2 * A100 80G GPUs.

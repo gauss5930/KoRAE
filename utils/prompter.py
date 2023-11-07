@@ -32,11 +32,11 @@ class Prompter(object):
         if system_msg:
             if input:
                 res = self.template['prompt_input'].format(
-                    system_msg=system_msg, instruction=instruction, input=input
+                    prompt=system_msg, instruction=instruction, input=input
                 )
             else:
                 res = self.template['prompt_no_input'].format(
-                    system_msg=system_msg, instruction=instruction
+                    prompt=system_msg, instruction=instruction
                 )
         else:
             if input:

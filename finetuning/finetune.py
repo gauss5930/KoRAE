@@ -102,13 +102,14 @@ def train(
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
+        use_auth_token=auth_token,
         torch_dtype=torch.bfloat16,
         device_map=device_map,
         use_flash_attention_2=True,
     )
     model.enable_input_require_grads()
 
-    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    tokenizer = AutoTokenizer.from_pretrained(base_model, use_auth_token=auth_token)
     
     bos = tokenizer.bos_token_id
     eos = tokenizer.eos_token_id

@@ -7,3 +7,4 @@ fire
 torch
 matplotlib
 openai
+accelerate

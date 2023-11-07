@@ -5,7 +5,7 @@
 We introduce **KoRAE** which finetuned with filtered high-quality Korean dataset.
 
 The **KoRAE** is output of combination of high-quality data which filtered by special data filtering method and Korean Llama-2 that Korean vocabularis were added. 
-We utilized special data filtering methods which introduced in [AlpaGasus paper](https://arxiv.org/abs/2307.08701) to filter high-quality data from mixture of several Korean datasets([OpenOrca-KO](https://huggingface.co/datasets/kyujinpy/OpenOrca-KO), [KOpen-Platypus](https://huggingface.co/datasets/kyujinpy/KOpen-platypus), [KoCoT_2000](https://huggingface.co/datasets/kyujinpy/KoCoT_2000), [databricks-dolly-15k-ko](https://huggingface.co/datasets/nlpai-lab/databricks-dolly-15k-ko)). 
+We utilized special data filtering methods which introduced in [AlpaGasus](https://arxiv.org/abs/2307.08701) to filter high-quality data from mixture of several Korean datasets(OpenOrca-KO, KOpen-Platypus, KoCoT_2000, databricks-dolly-15k-ko). 
 Thanks to [@kyujinpy](https://huggingface.co/kyujinpy) and [@nlp-ai](https://huggingface.co/nlpai-lab) for providing Korean datasets.
 We finetuned [Korean Llama-2](https://huggingface.co/beomi/llama-2-koen-13b) that introduced by [@beomi](https://huggingface.co/beomi).
 
@@ -19,6 +19,12 @@ The model and dataset are available via HuggingFace: [Cartinoe5930](https://hugg
 ```
 python 
 ```
+
+**Composition of KoRAE dataset**
+- [OpenOrca-KO](https://huggingface.co/datasets/kyujinpy/OpenOrca-KO)
+- [KOpen-Platypus](https://huggingface.co/datasets/kyujinpy/KOpen-platypus)
+- [KoCoT_2000](https://huggingface.co/datasets/kyujinpy/KoCoT_2000)
+- [databricks-dolly-15k-ko](https://huggingface.co/datasets/nlpai-lab/databricks-dolly-15k-ko)
 
 ## Setup
 

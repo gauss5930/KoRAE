@@ -2,5 +2,8 @@ transformers
 datasets
 bitsandbytes
 peft
-deepl
 tqdm
+fire
+torch
+matplotlib
+openai

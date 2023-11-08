@@ -12,3 +12,4 @@ deepspeed
 scipy
 wandb
 flash_attn
+optimum

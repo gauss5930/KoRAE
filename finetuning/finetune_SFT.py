@@ -57,28 +57,31 @@ def args_parse():
 def process_dataset(example):
     prompter = Prompter("KoRAE_template")
 
-    full_prompt = prompter.generate_prompt(
-        example["instruction"],
-        example["prompt"],
-        example["input"],
-        example["output"])
+    result_data = []
+    for i in range(len(example)):
+        full_prompt = prompter.generate_prompt(
+            example["instruction"][i],
+            example["prompt"][i],
+            example["input"][i],
+            example["output"][i])
+        result_data.append(full_prompt)
 
-    return full_prompt
+    return result_data
 
 def create_datasets(args):
     dataset = load_dataset(
-        args.dataset_name,
+        args.data_path,
         split="train",
-        num_proc=args.num_workers if args.num_workers else None,
+        num_proc=args.num_proc if args.num_proc else None,
     )
 
     if args.val_set_size > 0:
         train_val = dataset.train_test_split(test_size=args.val_set_size, seed=42)
 
-        train_data = train_val["train"].shuffle().map(process_dataset)
-        val_data = train_val["test"].shuffle().map(process_dataset)
+        train_data = train_val["train"]
+        val_data = train_val["test"]
     else:
-        train_data = dataset.shuffle().map(process_dataset)
+        train_data = dataset
         val_data = None
 
     return train_data, val_data
@@ -90,15 +93,17 @@ if __name__ == "__main__":
     gradient_accumulation_steps = args.batch_size // args.micro_batch_size // args.num_proc
 
     model = AutoModelForCausalLM.from_pretrained(
-        args.model_name,
-        device_map={"": Accelerator().process_index},
+        args.model_path,
+        # device_map={"": Accelerator().process_index},
+        torch_dtype=torch.bfloat16,
         use_auth_token=args.hf_token,
+        use_flash_attention_2=True
     )
     model.config.use_cache = False
     model.enable_input_require_grads()
 
     tokenizer = AutoTokenizer.from_pretrained(
-        args.model_name,
+        args.model_path,
         use_auth_token=args.hf_token,
     )
 
@@ -143,6 +148,7 @@ if __name__ == "__main__":
         model=model,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
+        formatting_func=process_dataset,
         data_collator=data_collator,
         packing=args.packing,
         max_seq_length=args.seq_length,

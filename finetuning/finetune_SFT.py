@@ -2,9 +2,7 @@ import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling
 from accelerate import Accelerator
-from datasets import load_dataset
-from tqdm import tqdm
-import random
+from datasets import load_dataset, Dataset
 
 from trl import SFTTrainer
 from accelerate import Accelerator
@@ -54,17 +52,19 @@ def args_parse():
 
     return parser.parse_args()
 
-def process_dataset(example):
+def process_dataset(dataset):
     prompter = Prompter("KoRAE_template")
 
-    result_data = []
-    for i in range(len(example)):
-        full_prompt = prompter.generate_prompt(
-            example["instruction"][i],
-            example["prompt"][i],
-            example["input"][i],
-            example["output"][i])
-        result_data.append(full_prompt)
+    list_data = dataset.to_list()
+    
+    for data in list_data:
+        data["prompted_input"] = prompter.generate_prompt(
+            data["instruction"],
+            data["prompt"],
+            data["input"],
+            data["output"])
+
+    result_data = Dataset.from_list(list_data)
 
     return result_data
 
@@ -119,6 +119,9 @@ if __name__ == "__main__":
         os.environ["WANDB_PROJECT"] = args.wandb_project
 
     train_dataset, eval_dataset = create_datasets(args)
+
+    train_dataset = process_dataset(train_dataset)
+    eval_dataset = process_dataset(eval_dataset) if eval_dataset else None
     
     training_args = TrainingArguments(
         output_dir=args.output_dir,
@@ -148,7 +151,7 @@ if __name__ == "__main__":
         model=model,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        formatting_func=process_dataset,
+        dataset_text_field="prompted_input",
         data_collator=data_collator,
         packing=args.packing,
         max_seq_length=args.seq_length,

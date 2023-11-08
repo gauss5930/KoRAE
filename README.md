@@ -72,26 +72,26 @@ To run `finetuning/finetune.py`, please refer to following codes.
 
 - torchrun version
 ```
-torchrun --nproc_per_node=GPU_NUMES finetuning/finetune.py \
-    --base_model beomi/llama-2-koen-13b \
+--model_path beomi/llama-2-koen-13b \
     --data_path Cartinoe5930/KoRAE_filtered_12k \
     --output_dir finetuning/result/llama2/ \
     --wandb_project KoRAE_llama2 \
     --wandb_run_name KoRAE_llama2 \
-    --hub_path HUB_PATH_TO_UPLOAD_MODEL \
-    --auth_token YOUR_HF_ACCESS_TOKEN \
+    --hf_hub_path HUB_PATH_TO_UPLOAD_MODEL \
+    --hf_token YOUR_HF_ACCESS_TOKEN \
+    --num_proc 1
 ```
 
 - accelerate version
 ```
 accelerate launch --config_file=accelerate_configs/desired_configuration --num_processes GPU_NUMS finetuning/finetune.py \
-    --base_model beomi/llama-2-koen-13b \
     --data_path Cartinoe5930/KoRAE_filtered_12k \
     --output_dir finetuning/result/llama2/ \
     --wandb_project KoRAE_llama2 \
     --wandb_run_name KoRAE_llama2 \
-    --hub_path HUB_PATH_TO_UPLOAD_MODEL \
-    --auth_token YOUR_HF_ACCESS_TOKEN \
+    --hf_hub_path HUB_PATH_TO_UPLOAD_MODEL \
+    --hf_token YOUR_HF_ACCESS_TOKEN \
+    --num_proc 1
 ```
 
 **Polyglot-ko**

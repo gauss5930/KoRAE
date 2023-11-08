@@ -19,12 +19,12 @@ def args_parse():
     parser.add_argument("--hf_token", type=str, help="Required to upload models to hub.")
     parser.add_argument("--model_path", type=str, default="beomi/llama-2-koen-13b")
     parser.add_argument("--data_path", type=str, default="Cartinoe5930/KoRAE_filtered_12k")
-    parser.add_argument("--num_proc", type=int, required=True)
+    parser.add_argument("--num_proc", type=int)
 
     parser.add_argument("--seq_length", type=int, default=4096)
     parser.add_argument("--num_epochs", type=int, default=3)
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--micro_batch_size", type=int, default=2)
+    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--micro_batch_size", type=int, default=4)
     parser.add_argument("--val_set_size", type=float, default=0)
     parser.add_argument("--logging_steps", type=int, default=10)
     parser.add_argument("--save_strategy", type=str, default="epoch", help="You can choose the strategy of saving model.")
@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
-        # device_map={"": Accelerator().process_index},
+        device_map={"": Accelerator().process_index},
         torch_dtype=torch.bfloat16,
         use_auth_token=args.hf_token,
         use_flash_attention_2=True
@@ -131,7 +131,7 @@ if __name__ == "__main__":
         logging_steps=args.logging_steps,
         save_strategy=args.save_strategy,
         save_steps=args.save_steps if args.save_strategy == "steps" else None,
-        evaluation_strategy="epoch" if eval_dataset else None,
+        evaluation_strategy="epoch" if eval_dataset else "no",
         group_by_length=args.group_by_length,
         lr_scheduler_type=args.lr_scheduler_type,
         warmup_ratio=args.warmup_ratio,

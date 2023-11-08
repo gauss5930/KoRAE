@@ -1,5 +1,6 @@
 transformers
 datasets
+trl
 bitsandbytes
 peft
 tqdm

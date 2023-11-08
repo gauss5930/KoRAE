@@ -25,7 +25,7 @@ class Prompter(object):
         instruction: str,
         system_msg: Union[None, str] = None,
         input: Union[None, str] = None,
-        label: Union[None, str] = None,
+        output: Union[None, str] = None,
     ) -> str:
         # returns the full prompt from instruction and optional system message and input
         # if a label is provided, it's also appended
@@ -47,6 +47,9 @@ class Prompter(object):
                 res = self.template['no_prompt_no_input'].format(
                     instruction=instruction
                 )
+
+        if output:
+            res = f"{res}{output}"
 
         return res
     

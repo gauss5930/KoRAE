@@ -67,7 +67,7 @@ def args_parse():
     parser.add_argument(
         "--i",
         type=int,
-        help="The path to the dataset. You can load the HF and json both types of datasets."
+        help="The index number that indicates to start rating from."
     )
     parser.add_argument(
         "--rating_type",

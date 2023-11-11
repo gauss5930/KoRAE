@@ -162,15 +162,7 @@ if __name__ == "__main__":
     if trainer.is_fsdp_enabled:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
 
-    model.push_to_hub(
-        args.hf_hub_path,
-        use_temp_dir=True,
-        use_auth_token=args.hf_token,
-    )
-    tokenizer.push_to_hub(
-        args.hf_hup_path,
-        use_temp_dir=True,
-        use_auth_token=args.hf_token,
-    )
+    trainer.model.push_to_hub(args.hf_hub_path)
+    trainer.tokenizer.push_to_hub(args.hf_hub_path)
 
     trainer.save_model(args.output_dir)

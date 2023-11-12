@@ -141,6 +141,21 @@ accelerate launch --config_file=accelerate_configs/fsdp_config.yaml --num_proces
     --hf_token YOUR_HF_ACCESS_TOKEN
 ```
 
+```
+!torchrun --nproc_per_node=2 finetuning/torchrun.py \
+    --output_dir finetuning/result/llama2/ \
+    --hf_token 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 \
+    --hf_hub_path Cartinoe5930/example_1 \
+    --num_epochs 1 \
+    --batch_size 2 \
+    --micro_batch_size 1 \
+    --wandb_project KoRAE_llama2 \
+    --wandb_run_name example_1 \
+    --fsdp "full_shard auto_wrap" \
+    --fsdp_transformer_layer_cls_to_wrap 'LLaMADecoderLayer' \
+    --bf16 True
+```
+
 ### Weights & Bias Result
 
 Still finetuning,,

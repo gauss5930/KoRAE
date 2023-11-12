@@ -36,6 +36,7 @@ def args_parse():
     
     parser.add_argument("--wandb_project", type=str)
     parser.add_argument("--wandb_run_name", type=str)
+    parser.add_argument("--num_workers", type=int, required=True)
 
     parser.add_argument(
         "--output_dir",
@@ -71,6 +72,7 @@ def create_datasets(args):
     dataset = load_dataset(
         args.data_path,
         split="train",
+        num_proc=args.num_workes
     )
 
     if args.val_set_size > 0:

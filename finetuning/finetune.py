@@ -3,9 +3,9 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling
 from accelerate import Accelerator
 from datasets import load_dataset, Dataset
+import huggingface_hub
 
 from trl import SFTTrainer
-from accelerate import Accelerator
 
 from utils.prompter import Prompter
 
@@ -90,6 +90,8 @@ def create_datasets(args):
 if __name__ == "__main__":
     args = args_parse()
 
+    huggingface_hub.login(args.hf_token)
+
     gradient_accumulation_steps = args.batch_size // args.micro_batch_size
 
     model = AutoModelForCausalLM.from_pretrained(
@@ -161,10 +163,13 @@ if __name__ == "__main__":
 
     trainer.train()
 
+    Accelerator.wait_for_everyone()
+
     if trainer.is_fsdp_enabled:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
 
-    trainer.model.push_to_hub(args.hf_hub_path)
-    trainer.tokenizer.push_to_hub(args.hf_hub_path)
+    if Accelerator.is_main_process:
+        trainer.model.push_to_hub(args.hf_hub_path)
+        trainer.tokenizer.push_to_hub(args.hf_hub_path)
 
     trainer.save_model(args.output_dir)

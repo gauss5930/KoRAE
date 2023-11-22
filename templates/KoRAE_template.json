@@ -1,8 +1,6 @@
 {
     "description": "Template used to fine-tune the KORae",
-    "prompt_input": "### System:\n{prompt}\n\n### User:\n{instruction}\n\n### Input:\n{input}\n\n### Assistant:\n",
-    "prompt_no_input": "### System:\n{prompt}\n\n### User:\n{instruction}\n\n### Assistant:\n",
-    "no_prompt_input": "### System:\n당신은 유용한 인공지능 비서입니다. 사용자가 몇 가지 지시가 포함된 작업을 제공합니다. 요청을 적절히 완료하는 응답을 작성하세요.\n\n### User:\n{instruction}\n\n### Input:\n{input}\n\n### Assistant:\n",
-    "no_prompt_no_input": "### System:\n당신은 유용한 인공지능 비서입니다. 사용자가 몇 가지 지시가 포함된 작업을 제공합니다. 요청을 적절히 완료하는 응답을 작성하세요.\n\n### User:\n{instruction}\n\n### Assistant:\n",
-    "response_split": "### Assistant:"
+    "prompt": "### System:\n{prompt}\n\n### User:\n{instruction}\n\n### Assistant:\n",
+    "no_prompt": "### System:\n당신은 유용한 인공지능 비서입니다. 사용자가 몇 가지 지시가 포함된 작업을 제공합니다. 요청을 적절히 완료하는 응답을 작성하세요.\n\n### User:\n{instruction}\n\n### Assistant:\n",
+    "response_split": "### Assistant:\n"
 }

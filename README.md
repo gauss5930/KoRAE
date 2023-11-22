@@ -7,7 +7,7 @@ We introduce **KoRAE** which finetuned with filtered high-quality Korean dataset
 The **KoRAE** is output of combination of high-quality data which filtered by special data filtering method and Korean Llama-2 that Korean vocabularis were added. 
 We utilized special data filtering methods which introduced in [AlpaGasus](https://arxiv.org/abs/2307.08701) to filter high-quality data from mixture of several Korean datasets(OpenOrca-KO, KOpen-Platypus, KoCoT_2000, databricks-dolly-15k-ko). 
 We finetuned [Korean Llama-2](https://huggingface.co/beomi/llama-2-koen-13b) that introduced by [@beomi](https://huggingface.co/beomi) on the filtered dataset.
-The Flash-Attention2 and FSDP were utilized for efficient finetuning.
+The Flash-Attention2 and LoRA were utilized for efficient finetuning.
 
 The KoRAE will be uploaded in [Open Ko-LLM Leaderboard](https://huggingface.co/spaces/upstage/open-ko-llm-leaderboard)!
 Stay tuned for the update of KoRAE!
@@ -16,7 +16,8 @@ The model and dataset are available via HuggingFace: [Cartinoe5930](https://hugg
 
 ## Setup
 
-Since this repository is multi-GPU friendly because of model and data parallelism, we suggest to use multi-GPU.
+This repository mainly uses SFTTrainer and DPOTrainer provided by HuggingFace🤗 TRL. Please keep in mind!
+In addition, Flash Attention 2 and LoRA are used for the Parameter Efficient Fine Tuning(PEFT).
 
 ```
 cd KoRAE
@@ -105,21 +106,22 @@ The original and filtered dataset are uploaded on HuggingFace Hub, so you can ch
 - [Cartinoe5930/KoRAE_original](https://huggingface.co/datasets/Cartinoe5930/KoRAE_original)
 - [Cartinoe5930/KoRAE_filtered_12k](https://huggingface.co/datasets/Cartinoe5930/KoRAE_filtered_12k)
 
-## Finetuning
+## Finetuning(SFT)
 
-We finetuned KoRAE with  Flash-Attention2 and FSDP for efficient finetuning on 2 * A100 80G GPUs.
-KoRAE did not use any PEFT methods and was fully finetuned, however, since the high-quality filtered dataset is smaller than the original dataset, it was possible to finetune more efficiently.
-As a result, it took only 9 GPU hours to fully finetune the model with 3 epochs! 
+We finetuned KoRAE with  Flash-Attention2 and LoRA for efficient finetuning on 1 * A100 80G GPUs.
+KoRAE was finetuned with Parameter Efficient Fine Tuning method, which called LoRA.
+In addition, since the high-quality filtered dataset is smaller than the original dataset, it makes finetuning more efficient.
+As a result, it took only 7 GPU hours to fully finetune the model with 3 epochs! 
 The hyperparameters used for finetuning of KoRAE are as follows:
 
-**Hyperparameters**
+**Training Hyperparameters**
 |Hyperparameters|Value|
 |---|---|
-|**Accelerate config**|accelerate_configs/fsdp_config.yaml|
 |**Base model**|beomi/llama-2-koen-13b|
 |**Dataset**|Cartinoe5930/KoRAE_filtered_12k|
-|**Batch size**|8|
-|**Micro batch size**|2|
+|**Batch size**|16|
+|**Micro batch size**|4|
+|**Gradient accumulation steps**|4|
 |**Epochs**|3|
 |**Learning rate**|1e-5|
 |**lr_scheduler**|cosine|
@@ -127,38 +129,90 @@ The hyperparameters used for finetuning of KoRAE are as follows:
 |**Warmup ratio**|0.03|
 |**Weight decay**|0|
 |**bf16**|True|
+|**Gradient checkpointing**|True|
+
+**LoRA Hyperparameters**
+|Hyperparameters|Value|
+|---|---|
+|**lora_r**|8|
+|**lora_alpha**|16|
+|**lora_dropout**|0.05|
 
 The finetuning code of KoRAE is as follows:
 
 ```
-accelerate launch --config_file=accelerate_configs/fsdp_config.yaml --num_processes=GPU_NUMS finetuning/finetune.py \
+python finetuning/finetune.py \
     --model_path beomi/llama-2-koen-13b \
     --data_path Cartinoe5930/KoRAE_filtered_12k \
-    --output_dir finetuning/result/llama2/ \
-    --wandb_project KoRAE_llama2 \
-    --wandb_run_name KoRAE_llama2 \
+    --output_dir finetuning/result/ \
+    --wandb_project KoRAE_sft \
+    --wandb_run_name KoRAE_sft \
     --hf_hub_path HUB_PATH_TO_UPLOAD_MODEL \
     --hf_token YOUR_HF_ACCESS_TOKEN
 ```
 
+## DPO
+
+We additionally trained KoRAE with DPO for improving the model.
+Since we need binarized feedback to train the model with DPO, we utilized the [ko_Ultrafeedback_binarized](https://huggingface.co/datasets/maywell/ko_Ultrafeedback_binarized) which is the Korean translated version of [Ultrafeedback_binarized]() provided by [@maywell](https://huggingface.co/maywell).
+The hyperparameters used for DPO training of KoRAE are as follows and LoRA hyperparameters are the same as mentioned above:
+
+
+**DPO Hyperparameters**
+|Hyperparameters|Value|
+|---|---|
+|**Beta**|0.1|
+|**Batch size**|16|
+|**Micro batch size**|4|
+|**Gradient accumulation steps**|4|
+|**Epochs**|3|
+|**Learning rate**|5e-7|
+|**lr_scheduler**|linear|
+|**Max prompt length**|2048|
+|**Max length**|4096|
+|**Warmup ratio**|0.1|
+|**Weight decay**|0|
+|**Gradient checkpointing**|True|
+
+The DPO training code of KoRAE is as follows:
+
 ```
-!torchrun --nproc_per_node=2 finetuning/torchrun.py \
-    --output_dir finetuning/result/llama2/ \
-    --hf_token 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 \
-    --hf_hub_path Cartinoe5930/example_1 \
-    --num_epochs 1 \
-    --batch_size 2 \
-    --micro_batch_size 1 \
-    --wandb_project KoRAE_llama2 \
-    --wandb_run_name example_1 \
-    --fsdp "full_shard auto_wrap" \
-    --fsdp_transformer_layer_cls_to_wrap 'LLaMADecoderLayer' \
-    --bf16 True
+python DPO/dpo.py \
+    --model_path Cartinoe5930/KoRAE-13b \
+    --data_path maywell/ko_Ultrafeedback_binarized \
+    --output_dir DPO/result/ \
+    --wandb_project KoRAE_dpo \
+    --wandb_run_name KoRAE_dpo \
+    --hf_hub_path HUB_PATH_TO_UPLOAD_MODEL \
+    --hf_token YOUR_HF_ACCESS_TOKEN
 ```
 
-### Weights & Bias Result
+## Prompting Format
 
-Still finetuning,,
+We utilized following prompt format for KoRAE.
+To follow the prompting format of popular models and preserve important information introduced in instruction, we used it.
+You can check the prompting format of KoRAE in `templates/KoRAE_template.json` or the following example:
+
+```
+### System
+{system_prompt}
+
+### User
+{instruction + input}
+
+### Assistant
+{output}
+```
+
+Since we implemented KoRAE prompt format on model's tokenizer, you can utilize it with `apply_chat_template`.
+For more details, please refer to the [Model card](https://huggingface.co/Cartinoe5930/KoRAE-13b) of KoRAE!
+
+## Weights & Bias Result
+
+The finetuning and DPO training results of KoRAE can be checked following the Weights & Bias link.
+
+- [SFT](https://wandb.ai/kopilot100/KoRAE_llama2/runs/d16ciamc?workspace=user-kopilot100)
+- [DPO]() - still training
 
 ## Open Ko-LLM Leaderboard
 
@@ -168,6 +222,7 @@ Stay tuned for the update of KoRAE!
 
 - [KO-Platypus](https://github.com/Marker-Inc-Korea/KO-Platypus)
 - [Korean-OpenOrca](https://github.com/Marker-Inc-Korea/Korean-OpenOrca)
+- [ko_Ultrafeedback_binarized](https://huggingface.co/datasets/maywell/ko_Ultrafeedback_binarized)
 
 ```
 @inproceedings{lee2023kullm,

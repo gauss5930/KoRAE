@@ -6,7 +6,7 @@ from datasets import load_dataset, Dataset
 from peft import LoraConfig, AutoPeftModelForCausalLM
 import huggingface_hub
 
-from trl import SFTTrainer
+from trl import DPOTrainer
 
 import argparse
 
@@ -14,14 +14,17 @@ def args_parse():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--hf_token", type=str, help="Required to upload models to hub.")
-    parser.add_argument("--model_path", type=str, default="beomi/llama-2-koen-13b")
-    parser.add_argument("--data_path", type=str, default="Cartinoe5930/KoRAE_filtered_12k")
+    parser.add_argument("--model_path", type=str, default="Cartinoe5930/KoRAE-13b")
+    parser.add_argument("--data_path", type=str, default="maywell/ko_Ultrafeedback_binarized")
+
+    parser.add_argument("--beta", type=float, default=0.1)
 
     parser.add_argument("--lora_r", type=int, default=8)
     parser.add_argument("--lora_alpha", type=int, default=16)
     parser.add_argument("--lora_dropout", type=float, default=0.05)
 
-    parser.add_argument("--seq_length", type=int, default=4096)
+    parser.add_argument("--max_prompt_length", type=int, default=2048)
+    parser.add_argument("--max_length", type=int, default=4096)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--micro_batch_size", type=int, default=4)
@@ -29,12 +32,10 @@ def args_parse():
     parser.add_argument("--logging_steps", type=int, default=1)
     parser.add_argument("--save_strategy", type=str, default="epoch", help="You can choose the strategy of saving model.")
     parser.add_argument("--gradient_checkpointing", type=bool, default=True)
-    parser.add_argument("--group_by_length", type=bool, default=False)
-    parser.add_argument("--packing", type=bool, default=False, help="If True, the short sentences would be concatenated.")
 
-    parser.add_argument("--learning_rate", type=float, default=1e-5)
-    parser.add_argument("--lr_scheduler_type", type=str, default="cosine")
-    parser.add_argument("--warmup_ratio", type=float, default=0.03)
+    parser.add_argument("--learning_rate", type=float, default=5e-7)
+    parser.add_argument("--lr_scheduler_type", type=str, default="linear")
+    parser.add_argument("--warmup_ratio", type=float, default=0.1)
     parser.add_argument("--weight_decay", type=float, default=0)
     
     parser.add_argument("--wandb_project", type=str)
@@ -52,22 +53,6 @@ def args_parse():
     )
 
     return parser.parse_args()
-
-def process_dataset(dataset):
-    prompter = Prompter("KoRAE_template")
-
-    list_data = dataset.to_list()
-    
-    for data in list_data:
-        data["prompted_input"] = prompter.generate_prompt(
-            data["instruction"],
-            data["prompt"],
-            data["input"],
-            data["output"])
-
-    result_data = Dataset.from_list(list_data)
-
-    return result_data
 
 def create_datasets(args):
     dataset = load_dataset(
@@ -105,32 +90,46 @@ if __name__ == "__main__":
 
     base_model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
-        device_map={"": Accelerator().local_process_index},
         torch_dtype=torch.bfloat16,
+        use_cache=not args.gradient_checkpointing,
+        use_flash_attention_2=True
+    )
+
+    ref_model = AutoModelForCausalLM.from_pretrained(
+        args.model_path,
+        otrch_dtype=torch.bfloat16,
         use_cache=not args.gradient_checkpointing,
         use_flash_attention_2=True
     )
 
     if args.gradient_checkpointing:
         base_model.gradient_checkpointing_enable()
+        ref_model.gradient_checkpointing_enable()
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side="right"
     tokenizer.chat_template = "{% for message in messages %}\n{% if message['role'] == 'system' %}\n{{ '### System:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'user' %}\n{{ '### User:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'assistant' %}\n{{ '### Assistant:\n'  + message['content'] + eos_token }}\n\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '### Assistant:\n' }}\n{% endif %}\n{% endfor %}"
 
-    def sft_process_data(example, tokenizer=tokenizer):
-        messages = [
-            {"role": "system", "content": example["prompt"] if example["prompt"] else "당신은 유용한 인공지능 비서입니다. 사용자가 몇 가지 지시가 포함된 작업을 제공합니다. 요청을 적절히 완료하는 응답을 작성하세요."},
-            {"role": "user", "content": example["instruction"] + " " + example["input"]},
-            {"role": "assistant", "content": example["output"]}
-        ]
-        
-        example["text"] = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=False
-        )
+    def dpo_process_data(example, tokenizer=tokenizer):
+        prompt_message = tokenizer.apply_chat_template([
+            {"role": "system", "content": "당신은 유용한 인공지능 비서입니다. 사용자가 몇 가지 지시가 포함된 작업을 제공합니다. 요청을 적절히 완료하는 응답을 작성하세요."},
+            {"role": "user", "content": example["prompt"]}
+        ], tokenize=False, add_generation_prompt=True)
 
-        return example
+        chosen_message = tokenizer.apply_chat_template([
+            {"role": "assistant", "content": example["chosen"]}
+        ], tokenize=False)
+
+        rejected_message = tokenizer.apply_chat_template([
+            {"role": "assistant", "content": example["rejected"]}
+        ], tokenize=False)
+        
+        return {
+            "prompt": prompt_message,
+            "chosen": chosen_message,
+            "rejected": rejected_message
+        }
 
     # Check if parameter passed or if set within environ
     use_wandb = len(args.wandb_project) > 0 or (
@@ -144,11 +143,11 @@ if __name__ == "__main__":
     original_columns = train_dataset.column_names
 
     train_dataset = train_dataset.map(
-        sft_process_data,
+        dpo_process_data,
         remove_columns=original_columns
     )
     eval_dataset = eval_dataset.map(
-        sft_process_data,
+        dpo_process_data,
         remove_columns=original_columns
     ) if eval_dataset else None
 
@@ -174,31 +173,24 @@ if __name__ == "__main__":
         run_name=args.wandb_run_name if use_wandb else None,
     )
 
-    trainer = SFTTrainer(
+    dpo_trainer = DPOTrainer(
         model=base_model,
-        peft_config=peft_config,
+        ref_model=ref_model,
+        args=training_args,
+        beta=args.beta,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        dataset_text_field="text",
-        packing=args.packing,
-        max_seq_length=args.seq_length,
         tokenizer=tokenizer,
-        args=training_args
+        peft_config=peft_config,
+        max_prompt_length=args.max_prompt_length,
+        max_length=args.max_length,
     )
 
-    trainer.train()
-
-    trainer.model.save_pretrained(args.output_dir)
-
-    del base_model
-    torch.cuda.empty_cache()
-    
-    model = AutoPeftModelForCausalLM.from_pretrained(args.output_dir, device_map="auto", torch_dtype=torch.bfloat16)
-    model = model.merge_and_unload()
+    dpo_trainer.train()
 
     if args.hf_hub_path:
-        model.push_to_hub(args.hf_hub_path)
-        tokenizer.push_to_hub(args.hf_hub_path)
+        dpo_trainer.model.push_to_hub(args.hf_hub_path)
+        dpo_trainer.tokenizer.push_to_hub(args.hf_hub_path)
     else:
-        model.save_pretrained(args.output_dir)
-        tokenizer.save_pretrained(args.output_dir)
+        dpo_trainer.model.save_pretrained(args.output_dir)
+        dpo_trainer.tokenizer.save_pretrained(args.output_dir)

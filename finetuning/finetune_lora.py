@@ -3,6 +3,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling
 from accelerate import Accelerator
 from datasets import load_dataset, Dataset
+from peft import LoraConfig, AutoPeftModelForCausalLM
 import huggingface_hub
 
 from trl import SFTTrainer
@@ -18,6 +19,10 @@ def args_parse():
     parser.add_argument("--model_path", type=str, default="beomi/llama-2-koen-13b")
     parser.add_argument("--data_path", type=str, default="Cartinoe5930/KoRAE_filtered_12k")
 
+    parser.add_argument("--lora_r", type=int, default=8)
+    parser.add_argument("--lora_alpha", type=int, default=16)
+    parser.add_argument("--lora_dropout", type=float, default=0.05)
+
     parser.add_argument("--seq_length", type=int, default=4096)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=16)
@@ -25,7 +30,7 @@ def args_parse():
     parser.add_argument("--val_set_size", type=float, default=0)
     parser.add_argument("--logging_steps", type=int, default=1)
     parser.add_argument("--save_strategy", type=str, default="epoch", help="You can choose the strategy of saving model.")
-    parser.add_argument("--gradient_checkpointing", type=bool, default=True)
+    parser.add_argument("--gradient_checkpointing", type=bool, default=False)
     parser.add_argument("--group_by_length", type=bool, default=False)
     parser.add_argument("--packing", type=bool, default=False)
 
@@ -36,7 +41,6 @@ def args_parse():
     
     parser.add_argument("--wandb_project", type=str)
     parser.add_argument("--wandb_run_name", type=str)
-    parser.add_argument("--num_workers", type=int, required=True)
 
     parser.add_argument(
         "--output_dir",
@@ -46,7 +50,6 @@ def args_parse():
     parser.add_argument(
         "--hf_hub_path",
         type=str,
-        required=True,
         help="The hub path to upload the model"
     )
 
@@ -71,8 +74,7 @@ def process_dataset(dataset):
 def create_datasets(args):
     dataset = load_dataset(
         args.data_path,
-        split="train",
-        num_proc=args.num_workers
+        split="train"
     )
 
     if args.val_set_size > 0:
@@ -93,6 +95,29 @@ if __name__ == "__main__":
     huggingface_hub.login(args.hf_token)
 
     gradient_accumulation_steps = args.batch_size // args.micro_batch_size
+
+    peft_config = LoraConfig(
+        r=args.lora_r,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "fc_in", "fc_out", "wte", "gate_proj", "down_proj", "up_proj"],
+        bias="none",
+        task_type="CAUSAL_LM"
+    )
+
+    base_model = AutoModelForCausalLM.from_pretrained(
+        args.model_path,
+        device_map={"": Accelerator().local_process_index},
+        use_cache=not args.gradient_checkpointing,
+        use_flash_attention_2=True
+    )
+
+    if args.gradient_checkpointing:
+        base_model.gradient_checkpointing_enable()
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side="right"
 
     # Check if parameter passed or if set within environ
     use_wandb = len(args.wandb_project) > 0 or (
@@ -123,33 +148,21 @@ if __name__ == "__main__":
         lr_scheduler_type=args.lr_scheduler_type,
         warmup_ratio=args.warmup_ratio,
         bf16=True,
-        save_total_limit=2,
+        save_total_limit=2 if args.strategy is not "no" else None,
         remove_unused_columns=False,
         report_to="wandb" if use_wandb else None,
         run_name=args.wandb_run_name if use_wandb else None,
     )
 
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model_path,
-        # torch_dtype=torch.bfloat16,
-        use_cache=not args.gradient_checkpointing,
-        use_flash_attention_2=True
-    )
-
-    if args.gradient_checkpointing:
-        model.gradient_checkpointing_enable()
-
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-    tokenizer.pad_token = tokenizer.eos_token
-
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
+    # data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
     trainer = SFTTrainer(
-        model=model,
+        model=base_model,
+        peft_config=peft_config,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         dataset_text_field="prompted_input",
-        data_collator=data_collator,
+        # data_collator=data_collator,
         packing=args.packing,
         max_seq_length=args.seq_length,
         tokenizer=tokenizer,
@@ -158,10 +171,17 @@ if __name__ == "__main__":
 
     trainer.train()
 
-    if trainer.is_fsdp_enabled:
-        trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
+    trainer.base_model.save_pretrained(args.output_dir)
 
-    trainer.model.push_to_hub(args.hf_hub_path)
-    trainer.tokenizer.push_to_hub(args.hf_hub_path)
+    del base_model
+    torch.cuda.empty_cache()
 
-    trainer.save_model(args.output_dir)
+    model = AutoPeftModelForCausalLM.from_pretrained(args.output_dir, device_map="auto", torch_dtype=torch.bfloat16)
+    model = model.merge_and_unload()
+
+    if args.push_to_hub:
+        model.push_to_hub(args.hf_hub_path)
+        tokenizer.push_to_hub(args.hf_hub_path)
+    else:
+        model.save_pretrained(args.output_dir)
+        tokenizer.save_pretrained(args.output_dir)

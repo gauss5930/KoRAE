@@ -1,9 +1,11 @@
 import os
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForSeq2Seq, Trainer
 from accelerate import Accelerator
-from datasets import load_dataset, Dataset
+from datasets import load_dataset
 import huggingface_hub
+
+from peft import LoraConfig, get_peft_model, AutoPeftModelForCausalLM
 
 from trl import SFTTrainer
 
@@ -18,6 +20,10 @@ def args_parse():
     parser.add_argument("--model_path", type=str, default="beomi/llama-2-koen-13b")
     parser.add_argument("--data_path", type=str, default="Cartinoe5930/KoRAE_filtered_12k")
 
+    parser.add_argument("--lora_r", type=int, default=8)
+    parser.add_argument("--lora_alpha", type=int, default=16)
+    parser.add_argument("--lora_dropout", type=float, default=0.05)
+
     parser.add_argument("--seq_length", type=int, default=4096)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=16)
@@ -27,7 +33,7 @@ def args_parse():
     parser.add_argument("--save_strategy", type=str, default="epoch", help="You can choose the strategy of saving model.")
     parser.add_argument("--gradient_checkpointing", type=bool, default=True)
     parser.add_argument("--group_by_length", type=bool, default=False)
-    parser.add_argument("--packing", type=bool, default=False)
+    parser.add_argument("--packing", type=bool, default=False, help="If True, the short sentences would be concatenated.")
 
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--lr_scheduler_type", type=str, default="cosine")
@@ -36,7 +42,6 @@ def args_parse():
     
     parser.add_argument("--wandb_project", type=str)
     parser.add_argument("--wandb_run_name", type=str)
-    parser.add_argument("--num_workers", type=int, required=True)
 
     parser.add_argument(
         "--output_dir",
@@ -46,27 +51,10 @@ def args_parse():
     parser.add_argument(
         "--hf_hub_path",
         type=str,
-        required=True,
         help="The hub path to upload the model"
     )
 
     return parser.parse_args()
-
-def process_dataset(dataset):
-    prompter = Prompter("KoRAE_template")
-
-    list_data = dataset.to_list()
-    
-    for data in list_data:
-        data["prompted_input"] = prompter.generate_prompt(
-            data["instruction"],
-            data["prompt"],
-            data["input"],
-            data["output"])
-
-    result_data = Dataset.from_list(list_data)
-
-    return result_data
 
 def create_datasets(args):
     dataset = load_dataset(
@@ -92,6 +80,8 @@ if __name__ == "__main__":
 
     huggingface_hub.login(args.hf_token)
 
+    prompter = Prompter()
+
     gradient_accumulation_steps = args.batch_size // args.micro_batch_size
 
     # Check if parameter passed or if set within environ
@@ -102,10 +92,82 @@ if __name__ == "__main__":
     if len(args.wandb_project) > 0:
         os.environ["WANDB_PROJECT"] = args.wandb_project
 
+    peft_config = LoraConfig(
+        r=args.lora_r,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "down_proj", "up_proj"],
+        bias="none",
+        task_type="CAUSAL_LM"
+    )
+
+    base_model = AutoModelForCausalLM.from_pretrained(
+        args.model_path,
+        torch_dtype=torch.bfloat16,
+        use_cache=not args.gradient_checkpointing,
+        use_flash_attention_2=True
+    )
+
+    base_model = get_peft_model(base_model, peft_config)
+
+    if args.gradient_checkpointing:
+        base_model.gradient_checkpointing_enable()
+
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    tokenizer.padding_side = "right"
+    tokenizer.chat_template = "{% for message in messages %}\n{% if message['role'] == 'system' %}\n{{ '### System:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'user' %}\n{{ '### User:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'assistant' %}\n{{ '### Assistant:\n'  + message['content'] + eos_token }}\n\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '### Assistant:\n' }}\n{% endif %}\n{% endfor %}"
+
+    def tokenize(prompt, args=args, add_eos_token=True):
+        result = tokenizer(
+            prompt,
+            truncation=True,
+            max_length=args.seq_len,
+            padding=False,
+            return_tensors=None,
+        )
+        if (
+            result["input_ids"][-1] != tokenizer.eos_token_id
+            and len(result["input_ids"]) < args.seq_len
+            and add_eos_token
+        ):
+            result["input_ids"].append(tokenizer.eos_token_id)
+            result["attention_mask"].append(1)
+
+        result["labels"] = result["input_ids"].copy()
+
+        return result
+
+    def generate_and_tokenize_prompt(data_point):
+        full_prompt = prompter.generate_prompt(
+            data_point["instruction"],
+            data_point["prompt"],
+            data_point["input"],
+            data_point["output"]
+        )
+        tokenized_full_prompt = tokenize(full_prompt)
+
+        user_prompt = prompter.generate_prompt(
+            data_point["instruction"],
+            data_point["prompt"],
+            data_point["input"]
+        )
+        tokenized_user_prompt = tokenize(user_prompt)
+        
+        user_prompt_len = len(tokenized_user_prompt["input_ids"])
+
+        tokenized_full_prompt["labels"] = [
+            -100
+        ] * user_prompt_len + tokenized_full_prompt["labels"][
+            user_prompt_len:
+        ]
+
+        return tokenized_full_prompt
+
     train_dataset, eval_dataset = create_datasets(args)
 
-    train_dataset = process_dataset(train_dataset)
-    eval_dataset = process_dataset(eval_dataset) if eval_dataset else None
+    train_dataset = train_dataset.shuffle().map(generate_and_tokenize_prompt)
+    eval_dataset = eval_dataset.shuffle().map(generate_and_tokenize_prompt) if eval_dataset else None
 
     training_args = TrainingArguments(
         output_dir=args.output_dir,
@@ -129,39 +191,29 @@ if __name__ == "__main__":
         run_name=args.wandb_run_name if use_wandb else None,
     )
 
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model_path,
-        # torch_dtype=torch.bfloat16,
-        use_cache=not args.gradient_checkpointing,
-        use_flash_attention_2=True
-    )
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, padding=True, return_tensors="pt")
 
-    if args.gradient_checkpointing:
-        model.gradient_checkpointing_enable()
-
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-    tokenizer.pad_token = tokenizer.eos_token
-
-    data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
-
-    trainer = SFTTrainer(
-        model=model,
+    trainer = Trainer(
+        model=base_model,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        dataset_text_field="prompted_input",
-        data_collator=data_collator,
-        packing=args.packing,
-        max_seq_length=args.seq_length,
-        tokenizer=tokenizer,
         args=training_args
+        data_collator=data_collator,
     )
 
     trainer.train()
 
-    if trainer.is_fsdp_enabled:
-        trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
+    trainer.model.save_pretrained(args.output_dir)
 
-    trainer.model.push_to_hub(args.hf_hub_path)
-    trainer.tokenizer.push_to_hub(args.hf_hub_path)
+    del base_model
+    torch.cuda.empty_cache()
+    
+    model = AutoPeftModelForCausalLM.from_pretrained(args.output_dir, device_map="auto", torch_dtype=torch.bfloat16)
+    model = model.merge_and_unload()
 
-    trainer.save_model(args.output_dir)
+    if args.hf_hub_path:
+        model.push_to_hub(args.hf_hub_path)
+        tokenizer.push_to_hub(args.hf_hub_path)
+    else:
+        model.save_pretrained(args.output_dir)
+        tokenizer.save_pretrained(args.output_dir)

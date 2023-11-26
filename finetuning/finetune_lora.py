@@ -1,6 +1,6 @@
 import os
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForLanguageModeling
 from accelerate import Accelerator
 from datasets import load_dataset, Dataset
 from peft import LoraConfig, AutoPeftModelForCausalLM
@@ -53,22 +53,6 @@ def args_parse():
 
     return parser.parse_args()
 
-def process_dataset(dataset):
-    prompter = Prompter("KoRAE_template")
-
-    list_data = dataset.to_list()
-    
-    for data in list_data:
-        data["prompted_input"] = prompter.generate_prompt(
-            data["instruction"],
-            data["prompt"],
-            data["input"],
-            data["output"])
-
-    result_data = Dataset.from_list(list_data)
-
-    return result_data
-
 def create_datasets(args):
     dataset = load_dataset(
         args.data_path,
@@ -98,7 +82,7 @@ if __name__ == "__main__":
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "fc_in", "fc_out", "wte", "gate_proj", "down_proj", "up_proj"],
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "down_proj", "up_proj"],
         bias="none",
         task_type="CAUSAL_LM"
     )
@@ -115,8 +99,8 @@ if __name__ == "__main__":
         base_model.gradient_checkpointing_enable()
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side="right"
+
+    tokenizer.padding_side = "right"
     tokenizer.chat_template = "{% for message in messages %}\n{% if message['role'] == 'system' %}\n{{ '### System:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'user' %}\n{{ '### User:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'assistant' %}\n{{ '### Assistant:\n'  + message['content'] + eos_token }}\n\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '### Assistant:\n' }}\n{% endif %}\n{% endfor %}"
 
     def sft_process_data(example, tokenizer=tokenizer):
@@ -174,6 +158,8 @@ if __name__ == "__main__":
         run_name=args.wandb_run_name if use_wandb else None,
     )
 
+    data_collator = DataCollatorForLanguageModeling(tokenizer, mlm=False)
+
     trainer = SFTTrainer(
         model=base_model,
         peft_config=peft_config,
@@ -182,6 +168,7 @@ if __name__ == "__main__":
         dataset_text_field="text",
         packing=args.packing,
         max_seq_length=args.seq_length,
+        data_collator=data_collator,
         tokenizer=tokenizer,
         args=training_args
     )

@@ -141,7 +141,7 @@ The hyperparameters used for finetuning of KoRAE are as follows:
 The finetuning code of KoRAE is as follows:
 
 ```
-python finetuning/finetune.py \
+python finetuning/finetune_lora.py \
     --model_path beomi/llama-2-koen-13b \
     --data_path Cartinoe5930/KoRAE_filtered_12k \
     --output_dir finetuning/result/ \

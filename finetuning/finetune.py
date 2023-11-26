@@ -1,13 +1,10 @@
 import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, DataCollatorForSeq2Seq, Trainer
-from accelerate import Accelerator
 from datasets import load_dataset
 import huggingface_hub
 
 from peft import LoraConfig, get_peft_model, AutoPeftModelForCausalLM
-
-from trl import SFTTrainer
 
 from utils.prompter import Prompter
 
@@ -27,7 +24,7 @@ def args_parse():
     parser.add_argument("--seq_length", type=int, default=4096)
     parser.add_argument("--num_epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--micro_batch_size", type=int, default=4)
+    parser.add_argument("--micro_batch_size", type=int, default=1)
     parser.add_argument("--val_set_size", type=float, default=0)
     parser.add_argument("--logging_steps", type=int, default=1)
     parser.add_argument("--save_strategy", type=str, default="epoch", help="You can choose the strategy of saving model.")
@@ -59,8 +56,7 @@ def args_parse():
 def create_datasets(args):
     dataset = load_dataset(
         args.data_path,
-        split="train",
-        num_proc=args.num_workers
+        split="train"
     )
 
     if args.val_set_size > 0:
@@ -108,12 +104,11 @@ if __name__ == "__main__":
         use_flash_attention_2=True
     )
 
-    base_model = get_peft_model(base_model, peft_config)
-
     if args.gradient_checkpointing:
         base_model.gradient_checkpointing_enable()
 
-
+    base_model = get_peft_model(base_model, peft_config)
+    
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     tokenizer.padding_side = "right"
     tokenizer.chat_template = "{% for message in messages %}\n{% if message['role'] == 'system' %}\n{{ '### System:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'user' %}\n{{ '### User:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'assistant' %}\n{{ '### Assistant:\n'  + message['content'] + eos_token }}\n\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '### Assistant:\n' }}\n{% endif %}\n{% endfor %}"
@@ -122,13 +117,13 @@ if __name__ == "__main__":
         result = tokenizer(
             prompt,
             truncation=True,
-            max_length=args.seq_len,
+            max_length=args.seq_length,
             padding=False,
             return_tensors=None,
         )
         if (
             result["input_ids"][-1] != tokenizer.eos_token_id
-            and len(result["input_ids"]) < args.seq_len
+            and len(result["input_ids"]) < args.seq_length
             and add_eos_token
         ):
             result["input_ids"].append(tokenizer.eos_token_id)
@@ -152,7 +147,7 @@ if __name__ == "__main__":
             data_point["prompt"],
             data_point["input"]
         )
-        tokenized_user_prompt = tokenize(user_prompt)
+        tokenized_user_prompt = tokenize(user_prompt, add_eos_token=False)
         
         user_prompt_len = len(tokenized_user_prompt["input_ids"])
 
@@ -161,13 +156,18 @@ if __name__ == "__main__":
         ] * user_prompt_len + tokenized_full_prompt["labels"][
             user_prompt_len:
         ]
-
+        
         return tokenized_full_prompt
 
     train_dataset, eval_dataset = create_datasets(args)
 
+    original_column = train_dataset.column_names
+    
     train_dataset = train_dataset.shuffle().map(generate_and_tokenize_prompt)
+    train_dataset = train_dataset.remove_columns(original_column)
+    
     eval_dataset = eval_dataset.shuffle().map(generate_and_tokenize_prompt) if eval_dataset else None
+    eval_dataset = eval_dataset.remove_columns(original_column) if eval_dataset else None
 
     training_args = TrainingArguments(
         output_dir=args.output_dir,
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         gradient_checkpointing=args.gradient_checkpointing,
         learning_rate=args.learning_rate,
         logging_steps=args.logging_steps,
-        save_strategy=args.save_strategy,
+        save_strategy="no",
         save_steps=args.save_steps if args.save_strategy == "steps" else None,
         evaluation_strategy="epoch" if eval_dataset else "no",
         group_by_length=args.group_by_length,
@@ -191,13 +191,13 @@ if __name__ == "__main__":
         run_name=args.wandb_run_name if use_wandb else None,
     )
 
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, padding=True, return_tensors="pt")
+    data_collator = DataCollatorForSeq2Seq(tokenizer, padding=True, return_tensors="pt")
 
     trainer = Trainer(
         model=base_model,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        args=training_args
+        args=training_args,
         data_collator=data_collator,
     )
 

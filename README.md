@@ -16,7 +16,7 @@ The model and dataset are available via HuggingFace: [Cartinoe5930](https://hugg
 
 ## Setup
 
-This repository mainly uses SFTTrainer and DPOTrainer provided by HuggingFace🤗 TRL. Please keep in mind!
+This repository mainly uses Transformers and TRL provided by HuggingFace🤗. Please keep in mind!
 In addition, Flash Attention 2 and LoRA are used for the Parameter Efficient Fine Tuning(PEFT).
 
 ```
@@ -111,7 +111,7 @@ The original and filtered dataset are uploaded on HuggingFace Hub, so you can ch
 We finetuned KoRAE with  Flash-Attention2 and LoRA for efficient finetuning on 1 * A100 80G GPUs.
 KoRAE was finetuned with Parameter Efficient Fine Tuning method, which called LoRA.
 In addition, since the high-quality filtered dataset is smaller than the original dataset, it makes finetuning more efficient.
-As a result, it took only 7 GPU hours to fully finetune the model with 3 epochs! 
+As a result, it took only 5 GPU hours to fully finetune the model with 3 epochs! 
 The hyperparameters used for finetuning of KoRAE are as follows:
 
 **Training Hyperparameters**
@@ -194,13 +194,13 @@ To follow the prompting format of popular models and preserve important informat
 You can check the prompting format of KoRAE in `templates/KoRAE_template.json` or the following example:
 
 ```
-### System
+### System:
 {system_prompt}
 
-### User
+### User:
 {instruction + input}
 
-### Assistant
+### Assistant:
 {output}
 ```
 

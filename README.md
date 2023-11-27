@@ -120,8 +120,8 @@ The hyperparameters used for finetuning of KoRAE are as follows:
 |**Base model**|beomi/llama-2-koen-13b|
 |**Dataset**|Cartinoe5930/KoRAE_filtered_12k|
 |**Batch size**|16|
-|**Micro batch size**|4|
-|**Gradient accumulation steps**|4|
+|**Micro batch size**|1|
+|**Gradient accumulation steps**|16|
 |**Epochs**|3|
 |**Learning rate**|1e-5|
 |**lr_scheduler**|cosine|

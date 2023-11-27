@@ -1,8 +1,7 @@
 import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
-from accelerate import Accelerator
-from datasets import load_dataset, Dataset
+from datasets import load_dataset
 from peft import LoraConfig, AutoPeftModelForCausalLM
 import huggingface_hub
 
@@ -107,9 +106,6 @@ if __name__ == "__main__":
         ref_model.gradient_checkpointing_enable()
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side="right"
-    tokenizer.chat_template = "{% for message in messages %}\n{% if message['role'] == 'system' %}\n{{ '### System:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'user' %}\n{{ '### User:\n' + message['content'] + eos_token }}\n\n{% elif message['role'] == 'assistant' %}\n{{ '### Assistant:\n'  + message['content'] + eos_token }}\n\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '### Assistant:\n' }}\n{% endif %}\n{% endfor %}"
 
     def dpo_process_data(example, tokenizer=tokenizer):
         prompt_message = tokenizer.apply_chat_template([
@@ -188,9 +184,17 @@ if __name__ == "__main__":
 
     dpo_trainer.train()
 
+    dpo_trainer.model.save_pretrained(args.output_dir)
+
+    del base_model
+    torch.cuda.empty_cache()
+    
+    model = AutoPeftModelForCausalLM.from_pretrained(args.output_dir, device_map="auto", torch_dtype=torch.bfloat16)
+    model = model.merge_and_unload()
+
     if args.hf_hub_path:
-        dpo_trainer.model.push_to_hub(args.hf_hub_path)
-        dpo_trainer.tokenizer.push_to_hub(args.hf_hub_path)
+        model.push_to_hub(args.hf_hub_path)
+        tokenizer.push_to_hub(args.hf_hub_path)
     else:
-        dpo_trainer.model.save_pretrained(args.output_dir)
-        dpo_trainer.tokenizer.save_pretrained(args.output_dir)
+        model.save_pretrained(args.output_dir)
+        tokenizer.save_pretrained(args.output_dir)

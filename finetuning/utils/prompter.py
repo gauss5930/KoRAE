@@ -30,12 +30,12 @@ class Prompter(object):
         # returns the full prompt from instruction and optional system message and input
         # if a label is provided, it's also appended
         if system_msg:
-            res = self.template['prompt_input'].format(
+            res = self.template['prompt'].format(
                 prompt=system_msg, 
                 instruction=instruction + " " + input
             )
         else:
-            res = self.template['no_prompt_input'].format(
+            res = self.template['no_prompt'].format(
                 instruction=instruction + " " + input,
             )
 

@@ -25,12 +25,13 @@ def args_parse():
     parser.add_argument("--max_prompt_length", type=int, default=2048)
     parser.add_argument("--max_length", type=int, default=4096)
     parser.add_argument("--num_epochs", type=int, default=3)
-    parser.add_argument("--batch_size", type=int, default=16)
-    parser.add_argument("--micro_batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--micro_batch_size", type=int, default=2)
     parser.add_argument("--val_set_size", type=float, default=0)
     parser.add_argument("--logging_steps", type=int, default=1)
     parser.add_argument("--save_strategy", type=str, default="epoch", help="You can choose the strategy of saving model.")
     parser.add_argument("--gradient_checkpointing", type=bool, default=True)
+    parser.add_argument("--group_by_length", type=bool, default=False)
 
     parser.add_argument("--learning_rate", type=float, default=5e-7)
     parser.add_argument("--lr_scheduler_type", type=str, default="linear")
@@ -96,7 +97,7 @@ if __name__ == "__main__":
 
     ref_model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
-        otrch_dtype=torch.bfloat16,
+        torch_dtype=torch.bfloat16,
         use_cache=not args.gradient_checkpointing,
         use_flash_attention_2=True
     )
@@ -181,7 +182,7 @@ if __name__ == "__main__":
         max_prompt_length=args.max_prompt_length,
         max_length=args.max_length,
     )
-
+    
     dpo_trainer.train()
 
     dpo_trainer.model.save_pretrained(args.output_dir)

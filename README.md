@@ -9,10 +9,21 @@ We utilized special data filtering methods which introduced in [AlpaGasus](https
 We finetuned [Korean Llama-2](https://huggingface.co/beomi/llama-2-koen-13b) that introduced by [@beomi](https://huggingface.co/beomi) on the filtered dataset.
 The Flash-Attention2 and LoRA were utilized for efficient finetuning.
 
-The KoRAE will be uploaded in [Open Ko-LLM Leaderboard](https://huggingface.co/spaces/upstage/open-ko-llm-leaderboard)!
-Stay tuned for the update of KoRAE!
+Through KoRAE and its variants, we were able to figure out that a more powerful Korean base model is needed.
+In addition, the high-quality filtered data has positive effects on the Korean model's performance too.
+However, due to the lack of enough pre-training on Korean data of the Korean base model, the quantity of data has more impact on the performance than quality.
+
+You can also check the performance of KoRAE in [Open Ko-LLM Leaderboard](https://huggingface.co/spaces/upstage/open-ko-llm-leaderboard)!
 
 The model and dataset are available via HuggingFace: [Cartinoe5930](https://huggingface.co/Cartinoe5930)
+
+## Contribution
+
+The contribution of KoRAE project is as follows:
+
+1. The finetuning in some epochs showed that high-quality filtered data has positive effects on model's performance. However, finetuning in a few epochs, the quantity of data is more matter than quality. It seems to be due to the lack of performance of the Korean base model. Therefore, the research to improve the Korean base model must continue.
+2. The model trained with DPO showed best performance among KoRAE variants. This shows that DPO is clearly effective in the Korean LLM.
+3. The model finetuned with filtered high-quality KoRAE showed better performance than without. Therefore, for better LLM, we should try to finetune the LLM with high-quality data.
 
 ## Setup
 
@@ -93,6 +104,9 @@ This confirms that KoRAE dataset consisted of high-quality data from the beginni
 
 However, We filtered data only with a score of 8.5 or higher and used it to finetune KoRAE for better performance.
 As a result, we were able to filter the dataset 64k to 12k!
+The following figure shows the shift of data distribution of KoRAE by filtering.
+
+<img src="/assets/KoRAE_Data_Distribution.png">
 
 ```
 python rating/filtering.py \
@@ -141,7 +155,7 @@ The hyperparameters used for finetuning of KoRAE are as follows:
 The finetuning code of KoRAE is as follows:
 
 ```
-python finetuning/finetune_lora.py \
+python finetuning/finetune.py \
     --model_path beomi/llama-2-koen-13b \
     --data_path Cartinoe5930/KoRAE_filtered_12k \
     --output_dir finetuning/result/ \
@@ -162,8 +176,8 @@ The hyperparameters used for DPO training of KoRAE are as follows and LoRA hyper
 |Hyperparameters|Value|
 |---|---|
 |**Beta**|0.1|
-|**Batch size**|16|
-|**Micro batch size**|4|
+|**Batch size**|8|
+|**Micro batch size**|2|
 |**Gradient accumulation steps**|4|
 |**Epochs**|3|
 |**Learning rate**|5e-7|
@@ -211,12 +225,44 @@ For more details, please refer to the [Model card](https://huggingface.co/Cartin
 
 The finetuning and DPO training results of KoRAE can be checked following the Weights & Bias link.
 
-- [SFT](https://wandb.ai/kopilot100/KoRAE_llama2/runs/d16ciamc?workspace=user-kopilot100)
-- [DPO]() - still training
+- [SFT-filtered](https://wandb.ai/kopilot100/KoRAE_sft/workspace?workspace=user-kopilot100)
+- [SFT-original](https://wandb.ai/kopilot100/KoRAE_sft_original?workspace=user-kopilot100)
+- [DPO](https://wandb.ai/kopilot100/KoRAE_dpo/workspace?workspace=user-kopilot100)
 
 ## Open Ko-LLM Leaderboard
 
-Stay tuned for the update of KoRAE!
+We uploaded several variants of KoRAE model to the Open Ko-LLM Leaderboard, and check the performance of them.
+The best performance is in **bold**, and the 2nd best performance is <U>underlined</U>.
+The results are follow as:
+
+|Model|Average|Ko-ARC|Ko-HellaSwag|Ko-MMLU|Ko-TruthfulQA|Ko-CommonGen V2|
+|---|---|---|---|---|---|---|
+|KoRAE-filtered-1ep|48.1|45.22|56.79|42|40.4|56.08|
+|KoRAE-filtered-3ep|<U>48.64</U>|<U>46.33</U>|<U>57.25</U>|42.8|41.08|<U>55.73</U>|
+|KoRAE-original-1ep|48.5|45.56|57.04|42.2|40.67|**57.02**|
+|KoRAE-original-3ep|48.16|44.37|56.97|<U>43.27</U>|**41.75**|54.43|
+|KoRAE-DPO|**48.71**|**46.5**|**57.54**|**42.87**|<U>41.28</U>|55.37|
+
+Through the analysis of performance table, we were able to confirm the following:
+
+1. The model finetuned with filtered KoRAE dataset showed improved performance as it finetuned from more epochs. However, the model finetuned with original KoRAE dataset showed the opposite trend.
+2. The model showed better overall and average performance through DPO than without.
+3. The model finetuned with more epochs showed that filtering high-quality data has a positive effect on the performance of model.
+
+## Discussion
+
+We were able to know and find out some interesting things that could help the research of Korean LLM through KoRAE project.
+In general, the Korean open-source model uploaded to the [Open Ko-LLM Leaderboard](https://huggingface.co/spaces/upstage/open-ko-llm-leaderboard) mainly uses the `beomi/llama-2-koen-13b` model uploaded by [@beomi](https://huggingface.co/beomi). 
+This model trained on the Korean + English Mix dataset using the llama 2 model architecture and is widely used as an open-source LLM. However, due to the lack of Korean data, training could only be done from tokens of only about 60B. We were able to see how this affects the model's performance through the KoRAE project. 
+
+The finetuning from a larger amount of data showed better performance than from high-quality data when finetuning from a small number of epochs. 
+However, the finetuning on high-quality data improves performance compared to original data as shown in the AlpaGasus experiment results when finetuning from a large number of epochs. 
+
+We were able to confirm that it is important to keep trying to create a further improved Korean base model through future research. 
+In addition, high-quality data is important for finetuning the model and, DPO had a positive effect on model performance. 
+
+Nevertheless, KoRAE still shows poor performance compared to models uploaded to the Open Ko-LLM Leaderboard. 
+We will leave it as a future research. Stay tuned for update of KoRAE!
 
 ## Citation
 

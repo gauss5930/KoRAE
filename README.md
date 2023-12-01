@@ -9,21 +9,15 @@ We utilized special data filtering methods which introduced in [AlpaGasus](https
 We finetuned [Korean Llama-2](https://huggingface.co/beomi/llama-2-koen-13b) that introduced by [@beomi](https://huggingface.co/beomi) on the filtered dataset.
 The Flash-Attention2 and LoRA were utilized for efficient finetuning.
 
-Through KoRAE and its variants, we were able to figure out that a more powerful Korean base model is needed.
-In addition, the high-quality filtered data has positive effects on the Korean model's performance too.
-However, due to the lack of enough pre-training on Korean data of the Korean base model, the quantity of data has more impact on the performance than quality.
-
-You can also check the performance of KoRAE in [Open Ko-LLM Leaderboard](https://huggingface.co/spaces/upstage/open-ko-llm-leaderboard)!
-
-The model and dataset are available via HuggingFace: [Cartinoe5930](https://huggingface.co/Cartinoe5930)
-
-## Contribution
-
-The contribution of KoRAE project is as follows:
+The finding of KoRAE is as follows:
 
 1. The finetuning in some epochs showed that high-quality filtered data has positive effects on model's performance. However, finetuning in a few epochs, the quantity of data is more matter than quality. It seems to be due to the lack of performance of the Korean base model. Therefore, the research to improve the Korean base model must continue.
 2. The model trained with DPO showed best performance among KoRAE variants. This shows that DPO is clearly effective in the Korean LLM.
 3. The model finetuned with filtered high-quality KoRAE showed better performance than without. Therefore, for better LLM, we should try to finetune the LLM with high-quality data.
+
+You can also check the performance of KoRAE in [Open Ko-LLM Leaderboard](https://huggingface.co/spaces/upstage/open-ko-llm-leaderboard)!
+
+The model and dataset are available via HuggingFace: [Cartinoe5930](https://huggingface.co/Cartinoe5930)
 
 ## Setup
 

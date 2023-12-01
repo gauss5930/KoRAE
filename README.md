@@ -226,13 +226,13 @@ The finetuning and DPO training results of KoRAE can be checked following the We
 ## Open Ko-LLM Leaderboard
 
 We uploaded several variants of KoRAE model to the Open Ko-LLM Leaderboard, and check the performance of them.
-The best performance is in **bold**, and the 2nd best performance is <U>underlined</U>.
+The best performance is in **bold**.
 The results are follow as:
 
 |Model|Average|Ko-ARC|Ko-HellaSwag|Ko-MMLU|Ko-TruthfulQA|Ko-CommonGen V2|
 |---|---|---|---|---|---|---|
 |KoRAE-filtered-1ep|48.1|45.22|56.79|42|40.4|56.08|
-|KoRAE-filtered-3ep|<U>48.64</U>|<U>46.33</U>|<U>57.25</U>|42.8|41.08|<U>55.73</U>|
+|KoRAE-filtered-3ep|<u>48.64</u>|<U>46.33</U>|<U>57.25</U>|42.8|41.08|<U>55.73</U>|
 |KoRAE-original-1ep|48.5|45.56|57.04|42.2|40.67|**57.02**|
 |KoRAE-original-3ep|48.16|44.37|56.97|<U>43.27</U>|**41.75**|54.43|
 |KoRAE-DPO|**48.71**|**46.5**|**57.54**|**42.87**|<U>41.28</U>|55.37|

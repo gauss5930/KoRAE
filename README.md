@@ -19,6 +19,12 @@ You can also check the performance of KoRAE in [Open Ko-LLM Leaderboard](https:/
 
 The model and dataset are available via HuggingFace: [Cartinoe5930](https://huggingface.co/Cartinoe5930)
 
+## News
+
+[**2023.12**] HAE-RAE Benchmark results of KoRAE and its variants have been uploaded. Thanks to [@HAETAE-project](https://github.com/HAETAE-project) for introducing awesome Korean LLM Benchmark! We thank [@guijinSON](https://github.com/guijinSON) for advice!
+
+[**2023.12**] The KoRAE and its variants were uploaded on HuggingFace Hub and Open Ko-LLM Leaderboard. Thanks to [@beomi](https://huggingface.co/beomi), [@kyujinpy](https://huggingface.co/kyujinpy), [@nlp-ai](https://huggingface.co/nlpai-lab), and [@maywell](https://huggingface.co/maywell) for providing base model and training datasets!
+
 ## Setup
 
 This repository mainly uses Transformers and TRL provided by HuggingFace🤗. Please keep in mind!
@@ -243,6 +249,22 @@ Through the analysis of the performance table, we were able to confirm the follo
 2. The model showed better overall and average performance through DPO than without.
 3. The model finetuned with more epochs showed that filtering high-quality data has a positive effect on the performance of the model.
 
+## HAE-RAE Benchmark
+
+We evaluated the KoRAE and its variants on HAE-RAE Benchmark additionally.
+The results of evaluation are as follows:
+
+|Models|correct_definition_matching|csat_geo|csat_law|csat_socio|date_understanding|general_knowledge|history|loan_words|reading_comprehension|rare_words|standard_nomenclature|
+|---|---|----|---|---|---|---|---|---|---|---|---|
+|[Cartinoe5930/KoRAE-13b](https://huggingface.co/Cartinoe5930/KoRAE-13b)|0.5011|**0.1933**|0.1659|0.1812|**0.6105**|0.3693|**0.7500**|0.7456|0.2244|0.7506|0.7647|
+|[Cartinoe5930/original-KoRAE-13b-3ep](https://huggingface.co/Cartinoe5930/original-KoRAE-13b-3ep)|**0.5285**|0.1867|**0.1889**|**0.2081**|0.5284|**0.3920**|0.7074|**0.8047**|**0.2361**|0.7235|**0.8105**|
+|[Cartinoe5930/KoRAE-13b-DPO](https://huggingface.co/Cartinoe5930/KoRAE-13b-DPO)|0.5057|**0.1933**|0.1659|0.1812|0.6063|0.3807|**0.7500**|0.7456|0.2190|**0.7556**|0.7712|
+
+The result of HAE-RAE Benchmark shows little bit different trend compared to the result of Open Ko-LLM Leaderboard.
+The high-quality dataset and DPO had a good effect according to the result of Open Ko-LLM Leaderboard, however the result of HAE-RAE Bench show that finetuning from more data had a better effect to the performance of model. 
+We think the reason for the difference is that there are gap between the target of each benchmark. 
+This is because the Open Ko-LLM Leaderboard focuses on evaluating the academic part of the model, however, the HAE-RAE Benchmark attempts to evaluate Korean cultural and contextual nuances.
+
 ## Discussion
 
 We were able to learn and find out some interesting things that could help the research of Korean LLM through the KoRAE project.
@@ -263,6 +285,7 @@ We will leave it as a future research. Stay tuned for an update of KoRAE!
 - [KO-Platypus](https://github.com/Marker-Inc-Korea/KO-Platypus)
 - [Korean-OpenOrca](https://github.com/Marker-Inc-Korea/Korean-OpenOrca)
 - [ko_Ultrafeedback_binarized](https://huggingface.co/datasets/maywell/ko_Ultrafeedback_binarized)
+- [HAE-RAE-Bench](https://github.com/HAETAE-project/HAE-RAE-BENCH)
 
 ```
 @inproceedings{lee2023kullm,
